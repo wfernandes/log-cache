@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"code.cloudfoundry.org/log-cache"
 	rpc "code.cloudfoundry.org/go-log-cache/rpc/logcache"
+	"code.cloudfoundry.org/log-cache"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

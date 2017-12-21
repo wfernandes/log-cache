@@ -9,10 +9,10 @@ import (
 
 	"google.golang.org/grpc"
 
+	rpc "code.cloudfoundry.org/go-log-cache/rpc/logcache"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/log-cache"
 	"code.cloudfoundry.org/log-cache/internal/egress"
-	rpc "code.cloudfoundry.org/go-log-cache/rpc/logcache"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

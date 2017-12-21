@@ -8,9 +8,9 @@ import (
 
 	"google.golang.org/grpc"
 
+	"code.cloudfoundry.org/go-log-cache/rpc/logcache"
 	"code.cloudfoundry.org/log-cache/internal/egress"
 	"code.cloudfoundry.org/log-cache/internal/ingress"
-	"code.cloudfoundry.org/go-log-cache/rpc/logcache"
 	"code.cloudfoundry.org/log-cache/internal/store"
 )
 
