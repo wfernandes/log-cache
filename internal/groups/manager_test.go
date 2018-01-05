@@ -100,7 +100,8 @@ var _ = Describe("Manager", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		resp, err := m.Read(context.Background(), &logcache.GroupReadRequest{
-			Name: "a",
+			Name:           "a",
+			FilterTemplate: "{{.}}",
 		})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -110,6 +111,7 @@ var _ = Describe("Manager", func() {
 		))
 
 		Expect(spyDataStorage.adds).To(ConsistOf("1", "2"))
+		Expect(spyDataStorage.getFilterTemplates).To(ConsistOf("{{.}}"))
 	})
 
 	It("defaults startTime to 0, endTime to now, envelopeType to nil and limit to 100", func() {
@@ -205,12 +207,13 @@ type spyDataStorage struct {
 	removes     []string
 	removeNames []string
 
-	getNames         []string
-	getStarts        []int64
-	getEnds          []int64
-	getLimits        []int
-	getEnvelopeTypes []store.EnvelopeType
-	getResult        []*loggregator_v2.Envelope
+	getNames           []string
+	getStarts          []int64
+	getEnds            []int64
+	getLimits          []int
+	getEnvelopeTypes   []store.EnvelopeType
+	getFilterTemplates []string
+	getResult          []*loggregator_v2.Envelope
 }
 
 func newSpyDataStorage() *spyDataStorage {
@@ -223,12 +226,14 @@ func (s *spyDataStorage) Get(
 	end time.Time,
 	envelopeType store.EnvelopeType,
 	limit int,
+	filterTemplate string,
 ) []*loggregator_v2.Envelope {
 	s.getNames = append(s.getNames, name)
 	s.getStarts = append(s.getStarts, start.UnixNano())
 	s.getEnds = append(s.getEnds, end.UnixNano())
 	s.getLimits = append(s.getLimits, limit)
 	s.getEnvelopeTypes = append(s.getEnvelopeTypes, envelopeType)
+	s.getFilterTemplates = append(s.getFilterTemplates, filterTemplate)
 
 	return s.getResult
 }

@@ -2,12 +2,13 @@ package store
 
 import (
 	"log"
+	"text/template"
 	"time"
 
 	"golang.org/x/net/context"
 
-	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/go-log-cache/rpc/logcache"
+	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 )
 
 // ProxyStore finds what store has the desired data to read from.
@@ -35,6 +36,7 @@ type Getter func(
 	end time.Time,
 	envelopeType EnvelopeType,
 	limit int,
+	filter *template.Template,
 ) []*loggregator_v2.Envelope
 
 // RemoteNodes are used to reach out to other LogCache nodes for data. They
@@ -52,11 +54,12 @@ func (s *ProxyStore) Get(
 	end time.Time,
 	envelopeType EnvelopeType,
 	limit int,
+	filterTemplate string,
 ) []*loggregator_v2.Envelope {
 	idx := s.lookup(sourceID)
 	if s.index == idx {
 		// Local
-		return s.local(sourceID, start, end, envelopeType, limit)
+		return s.local(sourceID, start, end, envelopeType, limit, s.parseFilter(filterTemplate))
 	}
 
 	// Remote
@@ -66,11 +69,12 @@ func (s *ProxyStore) Get(
 	}
 
 	resp, err := remote.Read(context.Background(), &logcache.ReadRequest{
-		SourceId:     sourceID,
-		StartTime:    start.UnixNano(),
-		EndTime:      end.UnixNano(),
-		EnvelopeType: s.convertEnvelopeType(envelopeType),
-		Limit:        int64(limit),
+		SourceId:       sourceID,
+		StartTime:      start.UnixNano(),
+		EndTime:        end.UnixNano(),
+		EnvelopeType:   s.convertEnvelopeType(envelopeType),
+		Limit:          int64(limit),
+		FilterTemplate: filterTemplate,
 	})
 	if err != nil {
 		log.Printf("failed to read from peer: %s", err)
@@ -78,6 +82,19 @@ func (s *ProxyStore) Get(
 	}
 
 	return resp.Envelopes.Batch
+}
+
+func (s *ProxyStore) parseFilter(f string) *template.Template {
+	if f == "" {
+		return nil
+	}
+
+	// TODO do something with the error
+	t, err := template.New("filter").Parse(f)
+	if err != nil {
+		return nil
+	}
+	return t
 }
 
 func (s *ProxyStore) convertEnvelopeType(t EnvelopeType) logcache.EnvelopeTypes {

@@ -1,6 +1,7 @@
 package store_test
 
 import (
+	"text/template"
 	"time"
 
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
@@ -35,7 +36,7 @@ var _ = Describe("Store", func() {
 
 		start := time.Unix(0, 0)
 		end := time.Unix(0, 4)
-		envelopes := s.Get("a", start, end, nil, 10)
+		envelopes := s.Get("a", start, end, nil, 10, nil)
 		Expect(envelopes).To(HaveLen(2))
 
 		for _, e := range envelopes {
@@ -58,7 +59,7 @@ var _ = Describe("Store", func() {
 
 		start := time.Unix(0, 0)
 		end := time.Unix(0, 9999)
-		envelopes := s.Get("a", start, end, nil, 3)
+		envelopes := s.Get("a", start, end, nil, 3, nil)
 		Expect(envelopes).To(HaveLen(3))
 	})
 
@@ -78,12 +79,12 @@ var _ = Describe("Store", func() {
 
 			start := time.Unix(0, 0)
 			end := time.Unix(0, 9999)
-			envelopes := s.Get("a", start, end, envelopeType, 5)
+			envelopes := s.Get("a", start, end, envelopeType, 5, nil)
 			Expect(envelopes).To(HaveLen(1))
 			Expect(envelopes[0].Message).To(BeAssignableToTypeOf(envelopeWrapper))
 
 			// No Filter
-			envelopes = s.Get("a", start, end, nil, 10)
+			envelopes = s.Get("a", start, end, nil, 10, nil)
 			Expect(envelopes).To(HaveLen(5))
 		},
 
@@ -103,7 +104,7 @@ var _ = Describe("Store", func() {
 		start := time.Unix(0, 0)
 		end := time.Unix(9999, 0)
 
-		Eventually(func() int { return len(s.Get("a", start, end, nil, 10)) }).Should(Equal(1))
+		Eventually(func() int { return len(s.Get("a", start, end, nil, 10, nil)) }).Should(Equal(1))
 	})
 
 	It("truncates older envelopes when max size is reached", func() {
@@ -134,7 +135,7 @@ var _ = Describe("Store", func() {
 
 		start := time.Unix(0, 0)
 		end := time.Unix(0, 9999)
-		envelopes := s.Get("a", start, end, nil, 10)
+		envelopes := s.Get("a", start, end, nil, 10, nil)
 		Expect(envelopes).To(HaveLen(5))
 
 		for i, e := range envelopes {
@@ -160,12 +161,12 @@ var _ = Describe("Store", func() {
 
 		start := time.Unix(0, 0)
 		end := time.Unix(0, 9999)
-		envelopes := s.Get("a", start, end, nil, 10)
+		envelopes := s.Get("a", start, end, nil, 10, nil)
 		Expect(envelopes).To(HaveLen(2))
 		Expect(envelopes[0].Timestamp).To(Equal(int64(2)))
 		Expect(envelopes[1].Timestamp).To(Equal(int64(3)))
 
-		envelopes = s.Get("b", start, end, nil, 10)
+		envelopes = s.Get("b", start, end, nil, 10, nil)
 		Expect(envelopes).To(HaveLen(1))
 
 		Expect(sm.values["Expired"]).To(Equal(1.0))
@@ -186,7 +187,40 @@ var _ = Describe("Store", func() {
 		start := time.Unix(0, 0)
 		end := time.Unix(0, 9999)
 
-		envelopes := s.Get("some-id", start, end, nil, 10)
+		envelopes := s.Get("some-id", start, end, nil, 10, nil)
+		Expect(envelopes).To(HaveLen(1))
+	})
+
+	It("uses the given filter template", func() {
+		s = store.NewStore(5, 2, sm)
+		e1 := &loggregator_v2.Envelope{
+			Timestamp: 1,
+			SourceId:  "a",
+			Message: &loggregator_v2.Envelope_Counter{
+				Counter: &loggregator_v2.Counter{
+					Name: "name-a",
+				},
+			},
+		}
+		s.Put(e1, e1.GetSourceId())
+
+		e2 := &loggregator_v2.Envelope{
+			Timestamp: 2,
+			SourceId:  "a",
+			Message: &loggregator_v2.Envelope_Counter{
+				Counter: &loggregator_v2.Counter{
+					Name: "name-b",
+				},
+			},
+		}
+		s.Put(e2, e2.GetSourceId())
+
+		start := time.Unix(0, 0)
+		end := time.Unix(0, 9999)
+
+		t := template.Must(template.New("filter").Parse(`{{ if eq .GetCounter.GetName "name-a"}}include{{end}}`))
+
+		envelopes := s.Get("a", start, end, nil, 10, t)
 		Expect(envelopes).To(HaveLen(1))
 	})
 })

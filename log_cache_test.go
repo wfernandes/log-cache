@@ -2,7 +2,7 @@ package logcache_test
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"log"
 	"net"
 	"sync"
@@ -31,6 +31,20 @@ var _ = Describe("LogCache", func() {
 			{Timestamp: 1, SourceId: "app-a"},
 			{Timestamp: 2, SourceId: "app-b"},
 			{Timestamp: 3, SourceId: "app-a"},
+			{
+				Timestamp: 4,
+				SourceId:  "app-a",
+				Message: &loggregator_v2.Envelope_Counter{
+					Counter: &loggregator_v2.Counter{Name: "some-name"},
+				},
+			},
+			{
+				Timestamp: 5,
+				SourceId:  "app-a",
+				Message: &loggregator_v2.Envelope_Counter{
+					Counter: &loggregator_v2.Counter{Name: "some-name"},
+				},
+			},
 		})
 
 		conn, err := grpc.Dial(cache.Addr(), grpc.WithInsecure())
@@ -41,14 +55,15 @@ var _ = Describe("LogCache", func() {
 		var es []*loggregator_v2.Envelope
 		f := func() error {
 			resp, err := client.Read(context.Background(), &rpc.ReadRequest{
-				SourceId: "app-a",
+				SourceId:       "app-a",
+				FilterTemplate: `{{if eq .GetCounter.GetName "some-name"}}include{{end}}`,
 			})
 			if err != nil {
 				return err
 			}
 
 			if len(resp.Envelopes.Batch) != 2 {
-				return errors.New("expected 2 envelopes")
+				return fmt.Errorf("expected 2 envelopes, but got %d", len(resp.Envelopes.Batch))
 			}
 
 			es = resp.Envelopes.Batch
@@ -56,12 +71,12 @@ var _ = Describe("LogCache", func() {
 		}
 		Eventually(f).Should(BeNil())
 
-		Expect(es[0].Timestamp).To(Equal(int64(1)))
+		Expect(es[0].Timestamp).To(Equal(int64(4)))
 		Expect(es[0].SourceId).To(Equal("app-a"))
-		Expect(es[1].Timestamp).To(Equal(int64(3)))
+		Expect(es[1].Timestamp).To(Equal(int64(5)))
 		Expect(es[1].SourceId).To(Equal("app-a"))
 
-		Eventually(spyMetrics.getter("Ingress")).Should(Equal(uint64(3)))
+		Eventually(spyMetrics.getter("Ingress")).Should(Equal(uint64(5)))
 		Eventually(spyMetrics.getter("Egress")).Should(Equal(uint64(2)))
 	})
 
@@ -122,7 +137,7 @@ var _ = Describe("LogCache", func() {
 			}
 
 			if len(resp.Envelopes.Batch) != 1 {
-				return errors.New("expected 1 envelopes")
+				return fmt.Errorf("expected 1 envelopes but got %d", len(resp.Envelopes.Batch))
 			}
 
 			es = resp.Envelopes.Batch
@@ -182,17 +197,9 @@ func writeEnvelopes(addr string, es []*loggregator_v2.Envelope) {
 	}
 
 	client := rpc.NewIngressClient(conn)
-	var envelopes []*loggregator_v2.Envelope
-	for _, e := range es {
-		envelopes = append(envelopes, &loggregator_v2.Envelope{
-			Timestamp: e.Timestamp,
-			SourceId:  e.SourceId,
-		})
-	}
-
 	_, err = client.Send(context.Background(), &rpc.SendRequest{
 		Envelopes: &loggregator_v2.EnvelopeBatch{
-			Batch: envelopes,
+			Batch: es,
 		},
 	})
 	if err != nil {

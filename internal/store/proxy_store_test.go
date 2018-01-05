@@ -1,10 +1,11 @@
 package store_test
 
 import (
+	"text/template"
 	"time"
 
-	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/go-log-cache/rpc/logcache"
+	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/log-cache/internal/store"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -43,7 +44,7 @@ var _ = Describe("ProxyStore", func() {
 			{Timestamp: 1},
 		}
 
-		result := proxy.Get("some-source", time.Unix(0, 99), time.Unix(0, 100), "envelope-type", 101)
+		result := proxy.Get("some-source", time.Unix(0, 99), time.Unix(0, 100), "envelope-type", 101, "{{.}}")
 
 		Expect(result).To(Equal(getter.result))
 
@@ -52,6 +53,7 @@ var _ = Describe("ProxyStore", func() {
 		Expect(getter.end).To(Equal(time.Unix(0, 100)))
 		Expect(getter.envelopeType).To(Equal("envelope-type"))
 		Expect(getter.limit).To(Equal(101))
+		Expect(getter.filter).ToNot(BeNil())
 
 		Expect(lookup.sourceID).To(Equal("some-source"))
 	})
@@ -63,7 +65,7 @@ var _ = Describe("ProxyStore", func() {
 			{Timestamp: 1},
 		}
 
-		result := proxy.Get("some-source", time.Unix(0, 99), time.Unix(0, 100), nil, 101)
+		result := proxy.Get("some-source", time.Unix(0, 99), time.Unix(0, 100), nil, 101, "some-filter")
 
 		Expect(result).To(Equal(egressClient.results))
 		Expect(egressClient.requests).To(HaveLen(1))
@@ -74,6 +76,7 @@ var _ = Describe("ProxyStore", func() {
 		Expect(req.EndTime).To(Equal(int64(100)))
 		Expect(req.EnvelopeType).To(Equal(logcache.EnvelopeTypes_ANY))
 		Expect(req.Limit).To(Equal(int64(101)))
+		Expect(req.FilterTemplate).To(Equal("some-filter"))
 
 		Expect(lookup.sourceID).To(Equal("some-source"))
 	})
@@ -85,7 +88,7 @@ var _ = Describe("ProxyStore", func() {
 			{Timestamp: 1},
 		}
 
-		proxy.Get("some-source", time.Unix(0, 99), time.Unix(0, 100), t, 101)
+		proxy.Get("some-source", time.Unix(0, 99), time.Unix(0, 100), t, 101, "")
 
 		req := egressClient.requests[0]
 		Expect(req.EnvelopeType).To(Equal(expected))
@@ -104,6 +107,7 @@ type spyGetter struct {
 	end          time.Time
 	envelopeType store.EnvelopeType
 	limit        int
+	filter       *template.Template
 	result       []*loggregator_v2.Envelope
 }
 
@@ -117,12 +121,14 @@ func (s *spyGetter) Get(
 	end time.Time,
 	envelopeType store.EnvelopeType,
 	limit int,
+	filter *template.Template,
 ) []*loggregator_v2.Envelope {
 	s.sourceID = sourceID
 	s.start = start
 	s.end = end
 	s.envelopeType = envelopeType
 	s.limit = limit
+	s.filter = filter
 	return s.result
 }
 

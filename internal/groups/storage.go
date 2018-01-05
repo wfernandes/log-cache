@@ -3,6 +3,7 @@ package groups
 import (
 	"context"
 	"log"
+	"text/template"
 	"time"
 
 	gologcache "code.cloudfoundry.org/go-log-cache"
@@ -72,8 +73,15 @@ func (s *Storage) Get(
 	end time.Time,
 	envelopeType store.EnvelopeType,
 	limit int,
+	filterTemplate string,
 ) []*loggregator_v2.Envelope {
-	return s.store.Get(name, start, end, envelopeType, limit)
+	var filter *template.Template
+	if filterTemplate != "" {
+		// TODO Get should return an error
+		filter, _ = template.New("filter").Parse(filterTemplate)
+	}
+
+	return s.store.Get(name, start, end, envelopeType, limit, filter)
 }
 
 // Add adds a SourceID for the storage to fetch.

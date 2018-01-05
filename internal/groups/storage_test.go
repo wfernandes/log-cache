@@ -47,7 +47,7 @@ var _ = Describe("Storage", func() {
 		Eventually(func() []string {
 			var r []string
 			// [100, 104)
-			for _, e := range s.Get("some-name", time.Unix(0, 100), time.Unix(0, 104), nil, 100) {
+			for _, e := range s.Get("some-name", time.Unix(0, 100), time.Unix(0, 104), nil, 100, "") {
 				r = append(r, e.GetSourceId())
 				ts = append(ts, e.GetTimestamp())
 			}
@@ -69,7 +69,7 @@ var _ = Describe("Storage", func() {
 		})
 
 		f := func() []*loggregator_v2.Envelope {
-			return s.Get("some-name", time.Unix(0, 100), time.Unix(0, 101), nil, 100)
+			return s.Get("some-name", time.Unix(0, 100), time.Unix(0, 101), nil, 100, "")
 		}()
 
 		Eventually(f).Should(BeEmpty())

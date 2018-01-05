@@ -1,7 +1,9 @@
 package store
 
 import (
+	"bytes"
 	"sync"
+	"text/template"
 	"time"
 
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
@@ -151,6 +153,7 @@ func (s *Store) Get(
 	end time.Time,
 	envelopeType EnvelopeType,
 	limit int,
+	filter *template.Template,
 ) []*loggregator_v2.Envelope {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -163,7 +166,8 @@ func (s *Store) Get(
 	var res []*loggregator_v2.Envelope
 	s.treeTraverse(t.Root, start.UnixNano(), end.UnixNano(), func(e *loggregator_v2.Envelope, idx string) bool {
 		if idx == index &&
-			s.checkEnvelopeType(e, envelopeType) {
+			s.checkEnvelopeType(e, envelopeType) &&
+			s.checkFilterTemplate(e, filter) {
 			res = append(res, e)
 		}
 
@@ -199,6 +203,16 @@ func (s *Store) treeTraverse(
 	}
 
 	return s.treeTraverse(n.Children[1], start, end, f)
+}
+
+func (s *Store) checkFilterTemplate(e *loggregator_v2.Envelope, t *template.Template) bool {
+	if t == nil {
+		return true
+	}
+
+	var b bytes.Buffer
+	err := t.Execute(&b, e)
+	return err == nil && b.Len() != 0
 }
 
 func (s *Store) checkEnvelopeType(e *loggregator_v2.Envelope, t EnvelopeType) bool {

@@ -3,11 +3,13 @@ package ingress_test
 import (
 	"time"
 
+	"code.cloudfoundry.org/go-log-cache/rpc/logcache"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/log-cache/internal/ingress"
-	"code.cloudfoundry.org/go-log-cache/rpc/logcache"
 	"code.cloudfoundry.org/log-cache/internal/store"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
@@ -51,11 +53,12 @@ var _ = Describe("PeerReader", func() {
 			{Timestamp: 2},
 		}
 		resp, err := r.Read(context.Background(), &logcache.ReadRequest{
-			SourceId:     "some-source",
-			StartTime:    99,
-			EndTime:      100,
-			Limit:        101,
-			EnvelopeType: logcache.EnvelopeTypes_LOG,
+			SourceId:       "some-source",
+			StartTime:      99,
+			EndTime:        100,
+			Limit:          101,
+			EnvelopeType:   logcache.EnvelopeTypes_LOG,
+			FilterTemplate: "{{.}}",
 		})
 		Expect(err).ToNot(HaveOccurred())
 
@@ -65,6 +68,7 @@ var _ = Describe("PeerReader", func() {
 		Expect(spyEnvelopeStore.end.UnixNano()).To(Equal(int64(100)))
 		Expect(spyEnvelopeStore.envelopeType).To(Equal(&loggregator_v2.Log{}))
 		Expect(spyEnvelopeStore.limit).To(Equal(101))
+		Expect(spyEnvelopeStore.filter).ToNot(BeNil())
 	})
 
 	DescribeTable("envelope types", func(t logcache.EnvelopeTypes, expected store.EnvelopeType) {
@@ -107,6 +111,7 @@ var _ = Describe("PeerReader", func() {
 		Expect(spyEnvelopeStore.end.UnixNano()).To(BeNumerically("~", time.Now().UnixNano(), time.Second))
 		Expect(spyEnvelopeStore.envelopeType).To(BeNil())
 		Expect(spyEnvelopeStore.limit).To(Equal(100))
+		Expect(spyEnvelopeStore.filter).To(BeEmpty())
 	})
 
 	It("returns an error if the end time is before the start time", func() {
@@ -139,6 +144,19 @@ var _ = Describe("PeerReader", func() {
 		})
 		Expect(err).To(HaveOccurred())
 	})
+
+	It("returns an error if the filter does not parse", func() {
+		_, err := r.Read(context.Background(), &logcache.ReadRequest{
+			SourceId:       "some-source",
+			StartTime:      99,
+			EndTime:        100,
+			Limit:          100,
+			EnvelopeType:   logcache.EnvelopeTypes_ANY,
+			FilterTemplate: "{{.invalid()}}",
+		})
+		Expect(err).To(HaveOccurred())
+		Expect(grpc.Code(err)).To(Equal(codes.InvalidArgument))
+	})
 })
 
 type spyEnvelopeStore struct {
@@ -150,6 +168,7 @@ type spyEnvelopeStore struct {
 	end          time.Time
 	envelopeType store.EnvelopeType
 	limit        int
+	filter       string
 }
 
 func newSpyEnvelopeStore() *spyEnvelopeStore {
@@ -166,12 +185,14 @@ func (s *spyEnvelopeStore) Get(
 	end time.Time,
 	envelopeType store.EnvelopeType,
 	limit int,
+	filterTemplate string,
 ) []*loggregator_v2.Envelope {
 	s.sourceID = sourceID
 	s.start = start
 	s.end = end
 	s.envelopeType = envelopeType
 	s.limit = limit
+	s.filter = filterTemplate
 
 	return s.getEnvelopes
 }

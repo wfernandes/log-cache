@@ -2,12 +2,15 @@ package ingress
 
 import (
 	"fmt"
+	"text/template"
 	"time"
 
-	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/go-log-cache/rpc/logcache"
+	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/log-cache/internal/store"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 )
 
 // PeerReader reads envelopes from peers. It implements
@@ -27,6 +30,7 @@ type Getter func(
 	end time.Time,
 	envelopeType store.EnvelopeType,
 	limit int,
+	filterTemplate string,
 ) []*loggregator_v2.Envelope
 
 // NewPeerReader creates and returns a new PeerReader.
@@ -63,12 +67,20 @@ func (r *PeerReader) Read(ctx context.Context, req *logcache.ReadRequest) (*logc
 		req.Limit = 100
 	}
 
+	if req.GetFilterTemplate() != "" {
+		_, err := template.New("filter").Parse(req.GetFilterTemplate())
+		if err != nil {
+			return nil, grpc.Errorf(codes.InvalidArgument, "failed to parse template: %s", err)
+		}
+	}
+
 	envs := r.get(
 		req.SourceId,
 		time.Unix(0, req.StartTime),
 		time.Unix(0, req.EndTime),
 		r.convertEnvelopeType(req.EnvelopeType),
 		int(req.Limit),
+		req.GetFilterTemplate(),
 	)
 	resp := &logcache.ReadResponse{
 		Envelopes: &loggregator_v2.EnvelopeBatch{

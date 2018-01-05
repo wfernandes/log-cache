@@ -29,6 +29,7 @@ type DataStorage interface {
 		end time.Time,
 		envelopeType store.EnvelopeType,
 		limit int,
+		filterTemplate string,
 	) []*loggregator_v2.Envelope
 
 	// Add starts fetching data for the given sourceID.
@@ -105,7 +106,7 @@ func (m *Manager) Read(ctx context.Context, r *logcache.GroupReadRequest, _ ...g
 		r.EndTime = time.Now().UnixNano()
 	}
 
-	batch := m.s.Get(r.GetName(), time.Unix(0, r.GetStartTime()), time.Unix(0, r.GetEndTime()), nil, 100)
+	batch := m.s.Get(r.GetName(), time.Unix(0, r.GetStartTime()), time.Unix(0, r.GetEndTime()), nil, 100, r.GetFilterTemplate())
 
 	return &logcache.GroupReadResponse{
 		Envelopes: &loggregator_v2.EnvelopeBatch{
