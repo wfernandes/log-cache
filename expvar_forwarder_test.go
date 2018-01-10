@@ -27,11 +27,11 @@ var _ = Describe("ExpvarForwarder", func() {
 		server1 = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(`
 			{
-				"LogCache": {
-					"CachePeriod": 68644,
-					"Egress": 999,
-					"Expired": 0,
-					"Ingress": 633
+				"logCache": {
+					"cachePeriod": 68644,
+					"egress": 999,
+					"expired": 0,
+					"ingress": 633
 				}
 			}`))
 		}))
@@ -39,9 +39,9 @@ var _ = Describe("ExpvarForwarder", func() {
 		server2 = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(`
 			{
-				"LogCache": {
-					"Egress": 999,
-					"Ingress": 633
+				"logCache": {
+					"egress": 999,
+					"ingress": 633
 				}
 			}`))
 		}))
@@ -66,14 +66,14 @@ var _ = Describe("ExpvarForwarder", func() {
 				"CachePeriod",
 				"mS",
 				"log-cache",
-				"{{.LogCache.CachePeriod}}",
+				"{{.logCache.cachePeriod}}",
 				map[string]string{"a": "some-value"},
 			),
 			logcache.AddExpvarCounterTemplate(
 				server2.URL,
 				"Egress",
 				"log-cache-nozzle",
-				"{{.LogCache.Egress}}",
+				"{{.logCache.egress}}",
 				map[string]string{"a": "some-value"},
 			),
 		)
