@@ -19,7 +19,6 @@ var _ = Describe("ExpvarForwarder", func() {
 		addr     string
 		server1  *httptest.Server
 		server2  *httptest.Server
-		server3  *httptest.Server
 		logCache *spyLogCache
 	)
 
@@ -42,16 +41,6 @@ var _ = Describe("ExpvarForwarder", func() {
 				"logCache": {
 					"egress": 999,
 					"ingress": 633
-				}
-			}`))
-		}))
-
-		server3 = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(500)
-			w.Write([]byte(`
-			{
-				"LogCache": {
-					"Garbage": 789,
 				}
 			}`))
 		}))
